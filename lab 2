@@ -1,0 +1,232 @@
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Cấu hình hiển thị
+sns.set_theme(style="whitegrid")
+plt.rcParams["figure.figsize"] = (10, 6)
+
+# =========================
+# ĐỌC DATA
+# =========================
+
+df = pd.read_csv("data.csv.txt")
+
+print("===== THÔNG TIN DATASET =====")
+print(df.head())
+print(df.info())
+print(df.describe())
+
+# Xử lý dữ liệu thiếu
+df["Age"] = df["Age"].fillna(df["Age"].median())
+df["Embarked"] = df["Embarked"].fillna(df["Embarked"].mode()[0])
+df["Cabin"] = df["Cabin"].fillna("Unknown")
+
+# Chọn thuộc tính số
+features = ["Age", "Fare", "SibSp", "Parch", "Pclass"]
+
+# =========================
+# BÀI 1: PHÂN TÍCH PHÂN PHỐI DỮ LIỆU
+# =========================
+
+print("\n===== BÀI 1: PHÂN TÍCH PHÂN PHỐI DỮ LIỆU =====")
+
+for feature in features[:3]:
+    plt.figure()
+    plt.hist(df[feature], bins=20)
+    plt.title(f"Histogram của {feature}")
+    plt.xlabel(feature)
+    plt.ylabel("Tần suất")
+    plt.show()
+
+for feature in features[:3]:
+    plt.figure()
+    sns.kdeplot(df[feature], label=feature, fill=True)
+    plt.title(f"Density Plot KDE của {feature}")
+    plt.xlabel(feature)
+    plt.ylabel("Mật độ")
+    plt.legend()
+    plt.show()
+
+plt.figure()
+sns.boxplot(data=df[features[:3]])
+plt.title("Boxplot của Age, Fare, SibSp")
+plt.show()
+
+print("""
+Nhận xét Bài 1:
+- Age phân bố tập trung nhiều ở độ tuổi khoảng 20 đến 40.
+- Fare bị lệch phải vì có một số hành khách trả tiền vé rất cao.
+- SibSp đa số có giá trị thấp, phần lớn hành khách đi một mình hoặc đi cùng ít người thân.
+""")
+
+# =========================
+# BÀI 2: PHÂN TÍCH DỮ LIỆU TÀI CHÍNH
+# =========================
+
+print("\n===== BÀI 2: PHÂN TÍCH DỮ LIỆU TÀI CHÍNH =====")
+
+try:
+    import yfinance as yf
+
+    ticker = "AAPL"
+    stock = yf.download(ticker, start="2022-01-01", end="2024-01-01")
+
+    if stock.empty:
+        raise Exception("Không tải được dữ liệu từ Yahoo Finance")
+
+    print(stock.head())
+
+    stock["MA50"] = stock["Close"].rolling(window=50).mean()
+    stock["MA200"] = stock["Close"].rolling(window=200).mean()
+
+    plt.figure()
+    plt.plot(stock.index, stock["Close"], label="Close Price")
+    plt.title("Giá đóng cửa cổ phiếu AAPL")
+    plt.xlabel("Ngày")
+    plt.ylabel("Giá đóng cửa")
+    plt.legend()
+    plt.show()
+
+    plt.figure()
+    plt.plot(stock.index, stock["Close"], label="Close Price")
+    plt.plot(stock.index, stock["MA50"], label="MA50")
+    plt.plot(stock.index, stock["MA200"], label="MA200")
+    plt.title("Giá đóng cửa và đường trung bình động AAPL")
+    plt.xlabel("Ngày")
+    plt.ylabel("Giá")
+    plt.legend()
+    plt.show()
+
+    first_price = stock["Close"].iloc[0]
+    last_price = stock["Close"].iloc[-1]
+
+    if last_price > first_price:
+        trend = "xu hướng tăng"
+    else:
+        trend = "xu hướng giảm"
+
+    print(f"Nhận xét Bài 2: Cổ phiếu {ticker} có {trend} trong giai đoạn 2022-2024.")
+
+except Exception as e:
+    print("Không thể tải dữ liệu Yahoo Finance.")
+    print("Lỗi:", e)
+    print("Bạn cần cài thư viện bằng lệnh: pip install yfinance")
+
+# =========================
+# BÀI 3: PHÁT HIỆN OUTLIERS BẰNG BOXPLOT
+# =========================
+
+print("\n===== BÀI 3: PHÁT HIỆN OUTLIERS =====")
+
+for feature in features:
+    plt.figure()
+    sns.boxplot(x=df[feature])
+    plt.title(f"Boxplot phát hiện outliers của {feature}")
+    plt.xlabel(feature)
+    plt.show()
+
+    Q1 = df[feature].quantile(0.25)
+    Q3 = df[feature].quantile(0.75)
+    IQR = Q3 - Q1
+
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+
+    outliers = df[(df[feature] < lower_bound) | (df[feature] > upper_bound)]
+
+    print(f"\nThuộc tính: {feature}")
+    print(f"Số lượng outliers: {len(outliers)}")
+    print(f"Ngưỡng dưới: {lower_bound}")
+    print(f"Ngưỡng trên: {upper_bound}")
+    print(outliers[[feature]].head())
+
+print("""
+Nhận xét Bài 3:
+- Fare có nhiều outliers vì một số hành khách mua vé hạng cao với giá rất lớn.
+- Age có một vài giá trị bất thường ở nhóm tuổi rất cao hoặc rất thấp.
+- SibSp và Parch có outliers vì đa số hành khách đi một mình, chỉ một số ít đi cùng nhiều người thân.
+""")
+
+# =========================
+# BÀI 4: PHÂN TÍCH MỐI QUAN HỆ GIỮA CÁC THUỘC TÍNH
+# =========================
+
+print("\n===== BÀI 4: MA TRẬN TƯƠNG QUAN =====")
+
+numeric_df = df.select_dtypes(include=["number"])
+corr_matrix = numeric_df.corr()
+
+print(corr_matrix)
+
+plt.figure(figsize=(12, 8))
+sns.heatmap(
+    corr_matrix,
+    annot=True,
+    cmap="coolwarm",
+    fmt=".2f"
+)
+plt.title("Heatmap ma trận tương quan")
+plt.show()
+
+print("\nCác cặp biến có tương quan cao:")
+
+corr_pairs = corr_matrix.unstack()
+corr_pairs = corr_pairs[corr_pairs.index.get_level_values(0) != corr_pairs.index.get_level_values(1)]
+corr_pairs = corr_pairs.abs().sort_values(ascending=False)
+
+print(corr_pairs.head(10))
+
+print("""
+Nhận xét Bài 4:
+- Pclass và Fare thường có tương quan âm vì hạng vé càng cao thì giá vé thường càng lớn.
+- SibSp và Parch có tương quan dương nhẹ vì người đi cùng anh chị em/vợ chồng thường cũng có thể đi cùng cha mẹ/con cái.
+- Survived có liên hệ với một số biến như Pclass, Fare, Age nhưng mức tương quan không quá mạnh.
+""")
+
+# =========================
+# BÀI 5: MỞ RỘNG
+# Phân tích tỷ lệ sống sót theo giới tính và hạng vé
+# =========================
+
+print("\n===== BÀI 5: PHÂN TÍCH MỞ RỘNG =====")
+
+survival_by_sex = df.groupby("Sex")["Survived"].mean()
+print("\nTỷ lệ sống sót theo giới tính:")
+print(survival_by_sex)
+
+plt.figure()
+sns.barplot(x=survival_by_sex.index, y=survival_by_sex.values)
+plt.title("Tỷ lệ sống sót theo giới tính")
+plt.xlabel("Giới tính")
+plt.ylabel("Tỷ lệ sống sót")
+plt.show()
+
+survival_by_class = df.groupby("Pclass")["Survived"].mean()
+print("\nTỷ lệ sống sót theo hạng vé:")
+print(survival_by_class)
+
+plt.figure()
+sns.barplot(x=survival_by_class.index, y=survival_by_class.values)
+plt.title("Tỷ lệ sống sót theo hạng vé")
+plt.xlabel("Hạng vé")
+plt.ylabel("Tỷ lệ sống sót")
+plt.show()
+
+plt.figure()
+sns.barplot(data=df, x="Pclass", y="Survived", hue="Sex")
+plt.title("Tỷ lệ sống sót theo hạng vé và giới tính")
+plt.xlabel("Hạng vé")
+plt.ylabel("Tỷ lệ sống sót")
+plt.show()
+
+print("""
+Nhận xét Bài 5:
+- Nữ giới có tỷ lệ sống sót cao hơn nam giới.
+- Hành khách hạng 1 có tỷ lệ sống sót cao hơn hạng 2 và hạng 3.
+- Khi kết hợp giới tính và hạng vé, nữ giới ở hạng vé cao thường có khả năng sống sót cao nhất.
+""")
+
+print("\n===== HOÀN THÀNH LAB 2 =====")
